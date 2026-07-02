@@ -10,17 +10,28 @@ dotenv.config();
 const app = express();
 const server = http.createServer(app);
 
-const allowedOrigins = process.env.NODE_ENV === "production" 
-  ? [process.env.PRODUCTION_URL || ""] 
-  : ["http://localhost:5173"];
+// Allow dynamic localhost origins during development (matches any localhost port)
+const allowedOrigins = process.env.NODE_ENV === "production"
+  ? [process.env.PRODUCTION_URL || ""]
+  : [/^http:\/\/localhost(:\d+)?$/];
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      // Allow non-browser clients (no origin)
+      if (!origin) return callback(null, true);
+
+      if (process.env.NODE_ENV === "production") {
+        return callback(null, true);
+      }
+
+      const ok = allowedOrigins.some(a => (a instanceof RegExp ? a.test(origin) : a === origin));
+      callback(null, ok);
+    },
     methods: ["GET", "POST"],
     credentials: true,
   },
-  pingTimeout: 60000, 
+  pingTimeout: 60000,
 });
 
 // In-memory map to store online users

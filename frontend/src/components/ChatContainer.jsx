@@ -42,6 +42,19 @@ const ChatContainer = () => {
     }
   }, [messages]);
 
+  // Mark incoming messages as read when they are from the selected user
+  useEffect(() => {
+    if (!selectedUser?._id || !authUser) return;
+    messages.forEach((msg) => {
+      // If the message was sent by the selected user and current user hasn't marked it read
+      const readBy = Array.isArray(msg.readBy) ? msg.readBy.map(id => id.toString()) : [];
+      if (msg.senderId === selectedUser._id && !readBy.includes(authUser._id)) {
+        // mark as read
+        useChatStore.getState().markMessageRead(msg._id);
+      }
+    });
+  }, [messages, selectedUser?._id, authUser]);
+
   if (isMessagesLoading) {
     return (
       <div className="flex-1 flex flex-col overflow-auto">
@@ -100,6 +113,35 @@ const ChatContainer = () => {
                   />
                 )}
                 {message.text && <p>{message.text}</p>}
+                {/* Reactions display */}
+                {message.reactions && message.reactions.length > 0 && (
+                  <div className="mt-2 flex items-center gap-2 text-sm">
+                    {Object.entries(
+                      (message.reactions || []).reduce((acc, r) => {
+                        acc[r.type] = (acc[r.type] || 0) + 1;
+                        return acc;
+                      }, {})
+                    ).map(([emoji, count]) => (
+                      <div key={emoji} className="px-2 py-1 bg-base-200 rounded-full">{emoji} {count}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Reaction actions and read receipt */}
+              <div className="text-xs opacity-60 mt-1 flex items-center gap-2">
+                <div className="flex gap-1">
+                  {['👍','❤️','😂','😮','🎉'].map(e => (
+                    <button
+                      key={e}
+                      onClick={() => useChatStore.getState().reactToMessage(message._id, e)}
+                      className="text-xs"
+                      type="button"
+                    >{e}</button>
+                  ))}
+                </div>
+                {message.senderId === authUser?._id && (
+                  <div className="ml-2">{Array.isArray(message.readBy) && message.readBy.map(id => id.toString()).includes(selectedUser?._id) ? 'Seen' : 'Sent'}</div>
+                )}
               </div>
             </div>
           ))

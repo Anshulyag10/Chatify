@@ -11,4 +11,17 @@ router.get("/:id", protectRoute, getMessages);
 
 router.post("/send/:id", protectRoute, sendMessage);
 
+// React to a message
+router.post('/react/:id', protectRoute, async (req, res, next) => {
+	// delegated to controller
+	const { addReaction } = await import('../controllers/message.controller.js');
+	return addReaction(req, res, next);
+});
+
+// Mark message read
+router.post('/read/:id', protectRoute, async (req, res, next) => {
+	const { markAsRead } = await import('../controllers/message.controller.js');
+	return markAsRead(req, res, next);
+});
+
 export default router; 

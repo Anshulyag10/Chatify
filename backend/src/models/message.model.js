@@ -21,10 +21,23 @@ const messageSchema = new mongoose.Schema(
         image : {
             type: String
         },
+            reactions: [
+                {
+                    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+                    type: { type: String },
+                }
+            ],
+
+            readBy: [
+                { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+            ],
     },
     {timestamps : true} // Automatically adds `createdAt` and `updatedAt` fields
 );
 
-const Message = mongoose.model("Message" , messageSchema);
+// Add index to speed up conversation queries between two users
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: 1 });
+
+const Message = mongoose.model("Message", messageSchema);
 
 export default Message;

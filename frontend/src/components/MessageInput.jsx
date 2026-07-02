@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { Image, Send, X } from "lucide-react"; 
 import toast from "react-hot-toast"; 
+import { compressImageFile } from "../lib/imageUtils";
 
 const MessageInput = () => {
   const [text, setText] = useState("");
@@ -13,17 +14,24 @@ const MessageInput = () => {
   const handleImageChange = (e) => {
     const file = e.target.files[0];
 
+    if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("Please select an image file");
       return;
     }
 
-    // Read the selected image as a Data URL
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result); // Store the image preview URL
-    };
-    reader.readAsDataURL(file); // Convert image to Data URL
+    // Compress image on the client before preview/upload
+    compressImageFile(file, 1200, 0.78)
+      .then((dataUrl) => {
+        setImagePreview(dataUrl);
+      })
+      .catch((err) => {
+        console.error("Image compression failed:", err);
+        // Fallback to raw preview
+        const reader = new FileReader();
+        reader.onloadend = () => setImagePreview(reader.result);
+        reader.readAsDataURL(file);
+      });
   };
 
   const removeImage = () => {

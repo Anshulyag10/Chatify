@@ -141,6 +141,22 @@ export const useChatStore = create((set, get) => ({
       
       if (isRelevantChat && newMessage._id) {
         set((state) => {
+
+    // Listen for reactions
+    socket.off('messageReaction');
+    socket.on('messageReaction', ({ messageId, userId, type }) => {
+      set((state) => ({
+        messages: state.messages.map(m => m._id === messageId ? { ...m, reactions: updateReactions(m.reactions || [], userId, type) } : m)
+      }));
+    });
+
+    // Listen for read receipts
+    socket.off('messageRead');
+    socket.on('messageRead', ({ messageId, userId }) => {
+      set((state) => ({
+        messages: state.messages.map(m => m._id === messageId ? { ...m, readBy: Array.isArray(m.readBy) ? Array.from(new Set([...(m.readBy || []).map(id => id.toString()), userId.toString()])) : [userId] } : m)
+      }));
+    });
           // Skip if we've already processed this message
           if (state.processedMessageIds.has(newMessage._id)) {
             return state;
@@ -182,4 +198,36 @@ export const useChatStore = create((set, get) => ({
       processedMessageIds: new Set()
     });
   },
+  // React to a message with a specified type (emoji or text)
+  reactToMessage: async (messageId, type) => {
+    try {
+      await axiosInstance.post(`/messages/react/${messageId}`, { type });
+      // optimistic update: handled by socket event as well
+    } catch (error) {
+      console.error('Failed to react to message:', error);
+      toast.error('Failed to add reaction');
+    }
+  },
+
+  // Mark a message as read
+  markMessageRead: async (messageId) => {
+    try {
+      await axiosInstance.post(`/messages/read/${messageId}`);
+      // optimistic update: handled by socket event
+    } catch (error) {
+      console.error('Failed to mark message read:', error);
+    }
+  },
 }));
+
+// Helper to update reactions array
+function updateReactions(reactions, userId, type) {
+  const copy = reactions ? [...reactions] : [];
+  const idx = copy.findIndex(r => r.userId.toString() === userId.toString());
+  if (idx > -1) {
+    copy[idx] = { userId, type };
+  } else {
+    copy.push({ userId, type });
+  }
+  return copy;
+}

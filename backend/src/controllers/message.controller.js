@@ -109,3 +109,64 @@ export const sendMessage = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+// Add or update a reaction for a message
+export const addReaction = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    const { type } = req.body; // reaction type e.g. '👍' or '❤️'
+    const userId = req.user._id;
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ error: 'Message not found' });
+
+    // If the user already reacted, update; otherwise push new
+    const existingIndex = message.reactions.findIndex(r => r.userId.toString() === userId.toString());
+    if (existingIndex > -1) {
+      message.reactions[existingIndex].type = type;
+    } else {
+      message.reactions.push({ userId, type });
+    }
+
+    await message.save();
+
+    // Emit socket event to receiver if online
+    const receiverId = message.receiverId.toString() === userId.toString() ? message.senderId : message.receiverId;
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('messageReaction', { messageId, userId, type });
+    }
+
+    res.status(200).json(message);
+  } catch (error) {
+    console.log('Error in addReaction:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Mark a message as read by the authenticated user
+export const markAsRead = async (req, res) => {
+  try {
+    const { id: messageId } = req.params;
+    const userId = req.user._id;
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ error: 'Message not found' });
+
+    if (!message.readBy.some(id => id.toString() === userId.toString())) {
+      message.readBy.push(userId);
+      await message.save();
+    }
+
+    // Notify sender that this message was read
+    const senderSocketId = getReceiverSocketId(message.senderId);
+    if (senderSocketId) {
+      io.to(senderSocketId).emit('messageRead', { messageId, userId });
+    }
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.log('Error in markAsRead:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
